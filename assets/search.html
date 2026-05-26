@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Article Search</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; color: #333; }
+    header { background: #1a1a2e; color: white; padding: 20px 40px; }
+    header h1 { font-size: 1.4rem; font-weight: 600; }
+    main { max-width: 860px; margin: 40px auto; padding: 0 20px; }
+    .search-box { background: white; border-radius: 10px; padding: 28px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 28px; }
+    .search-box h2 { font-size: 1rem; font-weight: 600; margin-bottom: 18px; color: #555; }
+    .fields { display: flex; gap: 14px; flex-wrap: wrap; }
+    .field { flex: 1; min-width: 200px; }
+    .field label { display: block; font-size: 0.8rem; font-weight: 600; color: #777; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .field input { width: 100%; padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 6px; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+    .field input:focus { border-color: #5c6bc0; }
+    .actions { margin-top: 18px; display: flex; gap: 10px; }
+    button { padding: 10px 24px; border: none; border-radius: 6px; font-size: 0.95rem; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+    .btn-search { background: #5c6bc0; color: white; }
+    .btn-search:hover { background: #3949ab; }
+    .btn-reset { background: #eeeeee; color: #555; }
+    .btn-reset:hover { background: #e0e0e0; }
+    .result-box { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; }
+    .result-header { padding: 16px 24px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .result-header span { font-size: 0.85rem; color: #888; }
+    .result-header strong { color: #333; }
+    table { width: 100%; border-collapse: collapse; }
+    thead { background: #fafafa; }
+    th { text-align: left; padding: 12px 20px; font-size: 0.8rem; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #f0f0f0; }
+    td { padding: 14px 20px; font-size: 0.92rem; border-bottom: 1px solid #f7f7f7; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+    .empty { padding: 48px; text-align: center; color: #bbb; font-size: 0.95rem; }
+    .loading { padding: 48px; text-align: center; color: #aaa; font-size: 0.9rem; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background: #e8eaf6; color: #5c6bc0; }
+    .error { padding: 16px 20px; color: #c62828; background: #ffebee; border-radius: 6px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Articles</h1>
+  </header>
+  <main>
+    <div class="search-box">
+      <h2>조건 검색</h2>
+      <div class="fields">
+        <div class="field">
+          <label>제목</label>
+          <input id="input-title" type="text" placeholder="제목 검색..." />
+        </div>
+        <div class="field">
+          <label>내용</label>
+          <input id="input-content" type="text" placeholder="내용 검색..." />
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn-search" onclick="doSearch()">검색</button>
+        <button class="btn-reset" onclick="doReset()">초기화</button>
+      </div>
+    </div>
+
+    <div class="result-box">
+      <div class="result-header">
+        <strong>검색 결과</strong>
+        <span id="result-count"></span>
+      </div>
+      <div id="result-area">
+        <div class="empty">검색 조건을 입력하고 검색 버튼을 누르세요.</div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    async function doSearch() {
+      const title = document.getElementById('input-title').value.trim();
+      const content = document.getElementById('input-content').value.trim();
+
+      const params = new URLSearchParams();
+      if (title) params.set('title', title);
+      if (content) params.set('content', content);
+
+      document.getElementById('result-area').innerHTML = '<div class="loading">검색 중...</div>';
+      document.getElementById('result-count').textContent = '';
+
+      try {
+        const res = await fetch('/api/articles/search?' + params.toString());
+        if (!res.ok) throw new Error('서버 오류: ' + res.status);
+        const data = await res.json();
+        renderResults(data);
+      } catch (e) {
+        document.getElementById('result-area').innerHTML = `<div class="error">${e.message}</div>`;
+      }
+    }
+
+    function doReset() {
+      document.getElementById('input-title').value = '';
+      document.getElementById('input-content').value = '';
+      document.getElementById('result-area').innerHTML = '<div class="empty">검색 조건을 입력하고 검색 버튼을 누르세요.</div>';
+      document.getElementById('result-count').textContent = '';
+    }
+
+    function renderResults(data) {
+      document.getElementById('result-count').textContent = `총 ${data.length}건`;
+      if (data.length === 0) {
+        document.getElementById('result-area').innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+        return;
+      }
+      const rows = data.map(item => `
+        <tr>
+          <td><span class="tag">#${item.id}</span></td>
+          <td>${item.title ?? '<span style="color:#bbb">-</span>'}</td>
+          <td>${item.content ?? '<span style="color:#bbb">-</span>'}</td>
+          <td style="color:#aaa;font-size:0.82rem;">${item.created_at?.slice(0,10) ?? ''}</td>
+        </tr>
+      `).join('');
+      document.getElementById('result-area').innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>제목</th><th>내용</th><th>작성일</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSearch();
+    });
+  </script>
+</body>
+</html>
